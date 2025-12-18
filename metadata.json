@@ -1,0 +1,5 @@
+{
+  "name": "Prompt Context Maker",
+  "description": "A tool to select multiple files and folders, read their contents recursively, and combine them into a single, structured prompt context for use with AI models.",
+  "requestFramePermissions": []
+}
