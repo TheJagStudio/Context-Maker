@@ -39,7 +39,6 @@ function PromptContextGenerator(): React.ReactNode {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const [isDragging, setIsDragging] = useState<boolean>(false);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,83 +73,6 @@ function PromptContextGenerator(): React.ReactNode {
       setSources(prev => [...prev, ...newSources]);
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // Drag and Drop Logic
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const getFilesFromEntry = async (entry: any): Promise<File[]> => {
-    if (entry.isFile) {
-      return new Promise((resolve) => {
-        entry.file((file: File) => resolve([file]));
-      });
-    } else if (entry.isDirectory) {
-      const dirReader = entry.createReader();
-      const entries: any[] = await new Promise((resolve) => {
-        dirReader.readEntries((results: any[]) => resolve(results));
-      });
-      const filePromises = entries.map(e => getFilesFromEntry(e));
-      const fileArrays = await Promise.all(filePromises);
-      return fileArrays.flat();
-    }
-    return [];
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    setIsLoading(true);
-
-    const items = Array.from(e.dataTransfer.items);
-    const newSources: FileSource[] = [];
-
-    for (const item of items) {
-      // Fix: Cast item to any to access webkitGetAsEntry and ensure getAsFile is recognized, resolving unknown type errors
-      const dataItem = item as any;
-      const entry = dataItem.webkitGetAsEntry ? dataItem.webkitGetAsEntry() : null;
-      if (!entry) continue;
-
-      if (entry.isFile) {
-        const file = dataItem.getAsFile ? dataItem.getAsFile() : null;
-        if (file) {
-          newSources.push({
-            id: crypto.randomUUID(),
-            name: file.name,
-            kind: 'file',
-            files: [file]
-          });
-        }
-      } else if (entry.isDirectory) {
-        const files = await getFilesFromEntry(entry);
-        // We need to ensure webkitRelativePath is simulated or captured if possible
-        // File objects from entry.file() don't have webkitRelativePath set by default
-        // We might need to manually decorate them for the processor
-        const decoratedFiles = await Promise.all(files.map(async (f) => {
-            // This is a bit hacky because File.webkitRelativePath is read-only
-            // but our processFileSources relies on it for directory reconstruction.
-            // Since we can't write to it, we'll ensure our processor handles it or 
-            // we simulate the structure.
-            return f;
-        }));
-
-        newSources.push({
-          id: crypto.randomUUID(),
-          name: entry.name,
-          kind: 'directory',
-          files: decoratedFiles
-        });
-      }
-    }
-
-    setSources(prev => [...prev, ...newSources]);
-    setIsLoading(false);
   };
 
   const triggerFolderInput = () => folderInputRef.current?.click();
@@ -204,10 +126,6 @@ function PromptContextGenerator(): React.ReactNode {
 
   return (
     <div className="bg-[#ffefc1] border-[3px] border-black p-6 md:p-8 neubrutal-shadow relative">
-      <div className="absolute -top-4 -right-4 bg-rose-400 border-[3px] border-black px-4 py-1 font-black text-sm uppercase neubrutal-shadow-sm rotate-2 z-20">
-        Multi-Select ON
-      </div>
-
       <input 
         type="file" 
         ref={folderInputRef} 
@@ -225,34 +143,38 @@ function PromptContextGenerator(): React.ReactNode {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
         {/* Left: Input Selection */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 space-y-8">
           <section>
-            <h2 className="text-2xl font-black text-black mb-4 uppercase italic tracking-tighter">1. Selection Area</h2>
-                      <div className="grid grid-cols-2 gap-3 mt-4">
-              <Button onClick={triggerFolderInput} icon={<FolderIcon />} size="sm" variant="primary">
+            <h2 className="text-2xl font-black text-black mb-6 uppercase italic tracking-tighter">1. Selection Area</h2>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <Button onClick={triggerFolderInput} icon={<FolderIcon />} size="md" variant="primary" className="flex-1">
                 + Folder
               </Button>
-              <Button onClick={triggerFileInput} icon={<FilePlusIcon />} size="sm" variant="secondary">
+              <Button onClick={triggerFileInput} icon={<FilePlusIcon />} size="md" variant="secondary" className="flex-1">
                 + Files
               </Button>
             </div>
+            <p className="mt-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">
+              Add multiple items sequentially
+            </p>
           </section>
 
           <section>
-            <div className="flex justify-between items-end mb-4">
+            <div className="flex justify-between items-end mb-4 border-b-2 border-black pb-2">
                 <h2 className="text-xl font-black text-black uppercase italic">Selection ({sources.length})</h2>
                 {sources.length > 0 && (
-                     <Button onClick={handleClear} variant="danger" size="sm">Clear</Button>
+                     <Button onClick={handleClear} variant="danger" size="sm">Clear All</Button>
                 )}
             </div>
             {sources.length > 0 ? (
-                <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2 pb-4 scrollbar-thin scrollbar-thumb-black">
+                <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2 pb-4 scrollbar-thin scrollbar-thumb-black">
                     {sources.map(source => (
                       <SelectedItem key={source.id} item={source} onRemove={handleRemoveItem} />
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-8 px-4 bg-white/30 border-2 border-dashed border-black/20 flex flex-col items-center justify-center gap-2">
+                <div className="text-center py-10 px-4 bg-white/20 border-2 border-dashed border-black/20 flex flex-col items-center justify-center gap-2">
                     <p className="font-bold text-[10px] text-black/30 uppercase tracking-[0.2em]">List is empty</p>
                 </div>
             )}
@@ -264,8 +186,13 @@ function PromptContextGenerator(): React.ReactNode {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-black text-black uppercase italic tracking-tighter">2. Generated Context</h2>
             {combinedOutput && (
-              <Button onClick={handleCopy} icon={isCopied ? <ClipboardCheckIcon /> : <ClipboardIcon />} variant="success">
-                {isCopied ? 'Copied!' : 'Copy to Clipboard'}
+              <Button 
+                onClick={handleCopy} 
+                icon={isCopied ? <ClipboardCheckIcon /> : <ClipboardIcon />} 
+                variant="success"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Updating...' : (isCopied ? 'Copied!' : 'Copy to Clipboard')}
               </Button>
             )}
           </div>

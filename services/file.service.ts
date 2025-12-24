@@ -16,7 +16,7 @@ const IGNORED_DIRS = new Set([
   '.vscode', '.idea',
   // Framework Specific
   '.expo', '.kotlin',
-  '.venv',"venv"
+  '.venv',"venv","package-lock.json"
 ]);
 
 const IGNORED_FILENAMES = new Set([
@@ -27,6 +27,8 @@ const IGNORED_FILENAMES = new Set([
 const IGNORED_EXTENSIONS = new Set([
   'jks', 'p8', 'p12', 'key', 'mobileprovision', 'pem', 'tsbuildinfo'
 ]);
+
+const MAX_FILE_SIZE = 50 * 1024; // 50KB
 
 function isIgnoredFile(filename: string): boolean {
     if (IGNORED_FILENAMES.has(filename)) return true;
@@ -122,6 +124,8 @@ export async function processFileSources(sources: FileSource[]): Promise<FileSys
             // Single files
             for (const file of source.files) {
                  if (isIgnoredFile(file.name)) continue;
+                 if (file.size > MAX_FILE_SIZE) continue;
+
                  const content = await readFileContent(file);
                  tree.push({ kind: 'file', name: file.name, path: file.name, content });
             }
@@ -143,6 +147,7 @@ export async function processFileSources(sources: FileSource[]): Promise<FileSys
                  if (hasIgnoredDir) continue;
 
                  if (isIgnoredFile(file.name)) continue;
+                 if (file.size > MAX_FILE_SIZE) continue;
 
                  // If the first part matches the source name, we skip it to avoid nesting Root/Root/...
                  const relativeParts = parts.length > 1 && parts[0] === source.name ? parts.slice(1) : parts;
